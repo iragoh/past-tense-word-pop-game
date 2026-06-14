@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Word Pop! | Past Tense Bubble Game</title>
+  <!-- Tailwind CSS v3 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Game container styles */
+    .game-container {
+      background: linear-gradient(135deg, #6eb0d9 0%, #2c5a7a 100%);
+      position: relative;
+      overflow: hidden;
+      border-radius: 2rem;
+      box-shadow: 0 25px 40px rgba(0,0,0,0.3);
+    }
+
+    /* Bubble styling */
+    .bubble {
+      position: absolute;
+      cursor: pointer;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      text-align: center;
+      color: #1e3a5f;
+      background: radial-gradient(circle at 35% 30%, rgba(255,255,245,0.98), rgba(180,210,255,0.95));
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2), inset 0 2px 5px rgba(255,255,255,0.8);
+      transition: transform 0.05s ease;
+      user-select: none;
+      touch-action: manipulation;
+      z-index: 20;
+      backdrop-filter: blur(2px);
+      font-family: 'Comic Neue', 'Segoe UI', system-ui, sans-serif;
+      will-change: transform, left, top;
+    }
+
+    .bubble:active {
+      transform: scale(0.92);
+    }
+
+    /* Particle explosion effect */
+    .particle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 100;
+      animation: particlePop 0.5s ease-out forwards;
+    }
+
+    @keyframes particlePop {
+      0% {
+        transform: scale(1) translate(0, 0);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(0) translate(var(--dx, 40px), var(--dy, -40px));
+        opacity: 0;
+      }
+    }
+
+    /* Flash animations */
+    .flash-correct {
+      animation: greenFlash 0.25s ease-in-out 2;
+    }
+
+    .flash-wrong {
+      animation: redFlash 0.25s ease-in-out 2;
+    }
+
+    @keyframes greenFlash {
+      0% { background-color: rgba(34,197,94,0.4); }
+      100% { background-color: rgba(34,197,94,0); }
+    }
+
+    @keyframes redFlash {
+      0% { background-color: rgba(239,68,68,0.5); }
+      100% { background-color: rgba(239,68,68,0); }
+    }
+
+    /* Heart styling */
+    .heart {
+      font-size: 2rem;
+      display: inline-block;
+      margin: 0 2px;
+    }
+
+    /* Scrollbar for review section */
+    .review-list::-webkit-scrollbar {
+      width: 8px;
+    }
+    .review-list::-webkit-scrollbar-track {
+      background: #e2e8f0;
+      border-radius: 10px;
+    }
+    .review-list::-webkit-scrollbar-thumb {
+      background: #8b5cf6;
+      border-radius: 10px;
+    }
+
+    /* Button hover effects */
+    .mode-btn {
+      transition: all 0.2s ease;
+    }
+    .mode-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* Mode selector active state */
+    .mode-active {
+      ring: 4px solid white;
+      transform: scale(1.02);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-800 font-sans">
+
+  <div id="app" class="w-full max-w-6xl mx-auto"></div>
+
+  <script>
+    // ============================================================
+    // COMPLETE VERB DATASET
+    // ============================================================
+    const VERB_DATA = {
+      // Regular Verbs
+      ask: "asked", agree: "agreed", blink: "blinked", close: "closed", buzz: "buzzed", decide: "decided", chew: "chewed", die: "died", cook: "cooked", escape: "escaped",
+      cross: "crossed", like: "liked", destroy: "destroyed", smile: "smiled", enjoy: "enjoyed", divide: "divided", fail: "failed", ban: "banned", finish: "finished",
+      cancel: "cancelled", fix: "fixed", level: "levelled", growl: "growled", marvel: "marvelled", help: "helped", plan: "planned", jump: "jumped", stop: "stopped",
+      kick: "kicked", travel: "travelled", kiss: "kissed", grab: "grabbed", laugh: "laughed", hug: "hugged", listen: "listened", skip: "skipped", live: "lived",
+      swap: "swapped", look: "looked", trip: "tripped", miss: "missed", carry: "carried", need: "needed", marry: "married", offer: "offered", study: "studied",
+      open: "opened", try: "tried", phone: "phoned", cry: "cried", play: "played", fry: "fried", roll: "rolled", empty: "emptied", scratch: "scratched",
+      scream: "screamed", show: "showed", slump: "slumped", smell: "smelled", spill: "spilled", squeal: "squealed", start: "started", stay: "stayed", talk: "talked",
+      visit: "visited", walk: "walked", want: "wanted", watch: "watched", whisper: "whispered", work: "worked", yell: "yelled",
+      // Irregular Verbs
+      eat: "ate", awake: "awoke", beat: "beat", become: "became", begin: "began", bend: "bent", bet: "bet", bite: "bit", bleed: "bled", blow: "blew", bear: "bore",
+      buy: "bought", bind: "bound", breed: "bred", broadcast: "broadcast", break: "broke", bring: "brought", build: "built", burn: "burnt", burst: "burst",
+      come: "came", cast: "cast", catch: "caught", choose: "chose", cling: "clung", cost: "cost", creep: "crept", cut: "cut", deal: "dealt", do: "did", drink: "drank",
+      dream: "dreamt", draw: "drew", drive: "drove", dig: "dug", feed: "fed", fall: "fell", feel: "felt", fit: "fit", flee: "fled", fly: "flew", fling: "flung",
+      forget: "forgot", fight: "fought", find: "found", freeze: "froze", give: "gave", get: "got", grow: "grew", grind: "ground", hear: "heard", hold: "held",
+      hide: "hid", hit: "hit", hang: "hung", hurt: "hurt", keep: "kept", kneel: "knelt", know: "knew", knit: "knit", lay: "laid", lie: "lay", leap: "leapt",
+      learn: "learnt", lead: "led", lend: "lent", let: "let", light: "lit", lose: "lost", make: "made", mean: "meant", meet: "met", misspell: "misspelt",
+      mistake: "mistook", overcome: "overcame", overdo: "overdid", overthrow: "overthrew", overtake: "overtook", pay: "paid", put: "put", quit: "quit", run: "ran",
+      ring: "rang", read: "read", rid: "rid", ride: "rode", rise: "rose", say: "said", sing: "sang", sink: "sank", sit: "sat", see: "saw", send: "sent", set: "set",
+      shine: "shone", shake: "shook", shoot: "shot", shrink: "shrank", shut: "shut", sleep: "slept", slide: "slid", sling: "slung", sell: "sold", seek: "sought",
+      spit: "spat", speed: "sped", spend: "spent", split: "split", speak: "spoke", spread: "spread", spring: "sprang", spin: "spun", steal: "stole", stand: "stood",
+      stink: "stank", stick: "stuck", sting: "stung", strike: "struck", swim: "swam", sweep: "swept", swing: "swung", teach: "taught", think: "thought", throw: "threw",
+      tell: "told", take: "took", tread: "trod", understand: "understood", upset: "upset", am: "was", wed: "wed", go: "went", weep: "wept", are: "were",
+      withhold: "withheld", wake: "woke", win: "won", wear: "wore", write: "wrote"
+    };
+
+    // Separate verb lists for game modes
+    const IRREGULAR_SET = new Set([
+      "eat","awake","beat","become","begin","bend","bet","bite","bleed","blow","bear","buy","bind","breed","broadcast","break","bring","build","burn","burst",
+      "come","cast","catch","choose","cling","cost","creep","cut","deal","do","drink","dream","draw","drive","dig","feed","fall","feel","fit","flee","fly","fling",
+      "forget","fight","find","freeze","give","get","grow","grind","hear","hold","hide","hit","hang","hurt","keep","kneel","know","knit","lay","lie","leap","learn",
+      "lead","lend","let","light","lose","make","mean","meet","misspell","mistake","overcome","overdo","overthrow","overtake","pay","put","quit","run","ring","read",
+      "rid","ride","rise","say","sing","sink","sit","see","send","set","shine","shake","shoot","shrink","shut","sleep","slide","sling","sell","seek","spit","speed",
+      "spend","split","speak","spread","spring","spin","steal","stand","stink","stick","sting","strike","swim","sweep","swing","teach","think","throw","tell","take",
+      "tread","understand","upset","am","wed","go","weep","are","withhold","wake","win","wear","write"
+    ]);
+
+    const regularVerbs = Object.keys(VERB_DATA).filter(v => !IRREGULAR_SET.has(v));
+    const irregularVerbs = Object.keys(VERB_DATA).filter(v => IRREGULAR_SET.has(v));
+
+    // ============================================================
+    // AUDIO SYNTHESIS (Web Audio API)
+    // ============================================================
+    class AudioSynth {
+      constructor() {
+        this.ctx = null;
+      }
+
+      init() {
+        if (!this.ctx) {
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playPop() {
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+        osc.start();
+        osc.stop(now + 0.2);
+      }
+
+      playBuzz() {
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.frequency.value = 180;
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+        osc.start();
+        osc.stop(now + 0.3);
+      }
+
+      playFanfare() {
+        this.init();
+        const notes = [523, 659, 784, 1046];
+        notes.forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.15, this.ctx.currentTime + i * 0.18);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + i * 0.18 + 0.4);
+          osc.start(this.ctx.currentTime + i * 0.18);
+          osc.stop(this.ctx.currentTime + i * 0.18 + 0.35);
+        });
+      }
+    }
+
+    const sound = new AudioSynth();
+
+    // ============================================================
+    // GAME ENGINE
+    // ============================================================
+    class WordPopGame {
+      constructor(container, mode, onComplete, isEndless = false) {
+        this.container = container;
+        this.mode = mode;
+        this.onComplete = onComplete;
+        this.isEndless = isEndless;
+        this.gameActive = false;
+        this.animationFrame = null;
+        this.bubbles = [];
+        this.spawnInterval = null;
+        
+        // Game state
+        this.score = 0;
+        this.lives = 3;
+        this.currentWordIndex = 0;
+        this.wordSequence = [];
+        this.currentBase = null;
+        this.currentCorrectPast = null;
+        this.mistakes = [];
+        this.totalWords = isEndless ? Infinity : 10;
+        this.wordsCompleted = 0;
+        
+        // Spawn timing
+        this.lastSpawnTime = 0;
+        this.spawnDelay = 2000; // Spawn new wave every 2 seconds
+        
+        // Prevent multiple interactions
+        this.isProcessing = false;
+      }
+
+      init() {
+        if (!this.isEndless) {
+          this.generateWordSequence();
+        }
+        this.gameActive = true;
+        this.updateUI();
+        if (!this.isEndless) {
+          this.nextWord();
+        } else {
+          this.startEndlessMode();
+        }
+        this.startAnimationLoop();
+      }
+
+      generateWordSequence() {
+        let pool = [];
+        if (this.mode === 'regular') pool = [...regularVerbs];
+        else if (this.mode === 'irregular') pool = [...irregularVerbs];
+        else pool = [...regularVerbs, ...irregularVerbs];
+        
+        // Shuffle and pick 10
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        this.wordSequence = pool.slice(0, this.totalWords);
+      }
+
+      startEndlessMode() {
+        // Pick a random starting word
+        this.pickRandomWord();
+        this.spawnBubbles();
+        
+        // Set up periodic spawning
+        this.spawnInterval = setInterval(() => {
+          if (this.gameActive && !this.isProcessing) {
+            this.spawnBubbles();
+          }
+        }, this.spawnDelay);
+      }
+
+      pickRandomWord() {
+        let pool = [];
+        if (this.mode === 'regular') pool = regularVerbs;
+        else if (this.mode === 'irregular') pool = irregularVerbs;
+        else pool = [...regularVerbs, ...irregularVerbs];
+        
+        this.currentBase = pool[Math.floor(Math.random() * pool.length)];
+        this.currentCorrectPast = VERB_DATA[this.currentBase];
+        this.wordsCompleted++;
+        
+        const promptEl = document.getElementById('current-prompt');
+        if (promptEl) promptEl.textContent = this.currentBase;
+      }
+
+      nextWord() {
+        if (!this.gameActive) return;
+        
+        if (this.currentWordIndex >= this.wordSequence.length) {
+          this.endGame(true);
+          return;
+        }
+        
+        this.currentBase = this.wordSequence[this.currentWordIndex];
+        this.currentCorrectPast = VERB_DATA[this.currentBase];
+        
+        // Clear all existing bubbles
+        this.clearAllBubbles();
+        
+        // Spawn new bubble set (7-8 bubbles for more challenge)
+        this.spawnBubbles();
+        
+        // Update prompt display
+        const promptEl = document.getElementById('current-prompt');
+        if (promptEl) promptEl.textContent = this.currentBase;
+        
+        const progressEl = document.getElementById('word-progress');
+        if (progressEl && !this.isEndless) {
+          progressEl.textContent = `${this.currentWordIndex + 1}/${this.totalWords}`;
+        } else if (progressEl && this.isEndless) {
+          progressEl.textContent = `🎯 ${this.wordsCompleted} words`;
+        }
+      }
+
+      spawnBubbles() {
+        // Create 1 correct + 6-7 distractors (more challenging)
+        const correctPast = this.currentCorrectPast;
+        const allPastTenses = Object.values(VERB_DATA);
+        const distractors = new Set();
+        distractors.add(correctPast);
+        
+        const numBubbles = 7 + Math.floor(Math.random() * 2); // 7-8 bubbles total
+        
+        while (distractors.size < numBubbles) {
+          const randomPast = allPastTenses[Math.floor(Math.random() * allPastTenses.length)];
+          distractors.add(randomPast);
+        }
+        
+        const bubbleTexts = Array.from(distractors);
+        // Shuffle positions
+        for (let i = bubbleTexts.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [bubbleTexts[i], bubbleTexts[j]] = [bubbleTexts[j], bubbleTexts[i]];
+        }
+        
+        // Create bubbles with non-overlapping positions
+        this.createNonOverlappingBubbles(bubbleTexts, correctPast);
+      }
+
+      createNonOverlappingBubbles(bubbleTexts, correctPast) {
+        const containerWidth = this.container.clientWidth;
+        const containerHeight = this.container.clientHeight;
+        const minDistance = 85; // Minimum distance between bubble centers
+        const margin = 15;
+        
+        const positions = [];
+        
+        bubbleTexts.forEach((pastText) => {
+          const isCorrect = (pastText === correctPast);
+          const size = 65 + Math.random() * 30;
+          let attempts = 0;
+          let placed = false;
+          
+          while (!placed && attempts < 50) {
+            const leftPos = margin + Math.random() * (containerWidth - size - margin * 2);
+            const startY = containerHeight - 40 - (Math.random() * 60);
+            
+            // Check for overlap with existing bubbles
+            let overlapping = false;
+            for (let pos of positions) {
+              const dx = Math.abs(pos.left - leftPos);
+              const dy = Math.abs(pos.y - startY);
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              if (distance < minDistance) {
+                overlapping = true;
+                break;
+              }
+            }
+            
+            if (!overlapping) {
+              positions.push({ left: leftPos, y: startY, size: size });
+              this.createBubble(pastText, isCorrect, leftPos, startY, size);
+              placed = true;
+            }
+            attempts++;
+          }
+          
+          // If can't place without overlap, place anyway
+          if (!placed) {
+            const leftPos = margin + Math.random() * (containerWidth - size - margin * 2);
+            const startY = containerHeight - 40 - (Math.random() * 60);
+            positions.push({ left: leftPos, y: startY, size: size });
+            this.createBubble(pastText, isCorrect, leftPos, startY, size);
+          }
+        });
+      }
+
+      createBubble(text, isCorrect, leftPos, startY, size) {
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        
+        bubble.style.width = `${size}px`;
+        bubble.style.height = `${size}px`;
+        bubble.style.fontSize = `${Math.max(14, size * 0.18)}px`;
+        bubble.style.left = `${leftPos}px`;
+        bubble.style.top = `${startY}px`;
+        
+        bubble.textContent = text;
+        bubble.dataset.past = text;
+        bubble.dataset.correct = isCorrect;
+        
+        // Store velocity (pixels per frame, moving up)
+        const speed = 0.7 + Math.random() * 0.8; // Varied speeds
+        
+        // Add click handler
+        const handleClick = (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.popBubble(bubble, text, isCorrect);
+        };
+        bubble.addEventListener('click', handleClick);
+        bubble.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          handleClick(e);
+        });
+        
+        this.container.appendChild(bubble);
+        
+        // Store bubble data
+        this.bubbles.push({
+          dom: bubble,
+          y: startY,
+          speed: speed,
+          text: text,
+          isCorrect: isCorrect,
+          width: size,
+          height: size,
+          left: leftPos
+        });
+      }
+
+      popBubble(bubbleEl, text, isCorrect) {
+        if (!this.gameActive || this.isProcessing) return;
+        
+        // Activate audio on first interaction
+        sound.init();
+        
+        if (isCorrect) {
+          // CORRECT POP
+          sound.playPop();
+          this.score += 10;
+          this.updateUI();
+          this.createParticles(bubbleEl, '#fbbf24');
+          this.flashScreen('correct');
+          
+          // Remove bubble
+          this.removeBubble(bubbleEl);
+          
+          // Move to next word
+          this.isProcessing = true;
+          setTimeout(() => {
+            if (this.isEndless) {
+              this.pickRandomWord();
+              this.clearAllBubbles();
+              this.spawnBubbles();
+            } else {
+              this.currentWordIndex++;
+              this.nextWord();
+            }
+            this.isProcessing = false;
+          }, 200);
+        } else {
+          // WRONG POP
+          sound.playBuzz();
+          this.lives--;
+          this.updateUI();
+          this.createParticles(bubbleEl, '#ef4444');
+          this.flashScreen('wrong');
+          
+          // Record mistake
+          this.mistakes.push({
+            base: this.currentBase,
+            correct: this.currentCorrectPast,
+            studentAnswer: text
+          });
+          
+          // Remove this specific bubble
+          this.removeBubble(bubbleEl);
+          
+          // Check game over
+          if (this.lives <= 0) {
+            this.gameActive = false;
+            if (this.spawnInterval) clearInterval(this.spawnInterval);
+            setTimeout(() => this.endGame(false), 300);
+          }
+          
+          this.isProcessing = true;
+          setTimeout(() => { this.isProcessing = false; }, 150);
+        }
+      }
+
+      removeBubble(bubbleEl) {
+        const index = this.bubbles.findIndex(b => b.dom === bubbleEl);
+        if (index !== -1) {
+          if (bubbleEl && bubbleEl.parentNode) bubbleEl.remove();
+          this.bubbles.splice(index, 1);
+        }
+      }
+
+      clearAllBubbles() {
+        this.bubbles.forEach(bubble => {
+          if (bubble.dom && bubble.dom.parentNode) bubble.dom.remove();
+        });
+        this.bubbles = [];
+      }
+
+      updateBubblePositions() {
+        const containerHeight = this.container.clientHeight;
+        const bubblesToRemove = [];
+        
+        this.bubbles.forEach((bubble, idx) => {
+          // Move bubble up
+          bubble.y -= bubble.speed;
+          
+          // Check if bubble reached top (escaped)
+          if (bubble.y < 20) {
+            // Bubble escaped without being popped
+            if (bubble.isCorrect) {
+              // Correct bubble escaped - lose a life
+              if (this.gameActive) {
+                this.lives--;
+                this.updateUI();
+                this.mistakes.push({
+                  base: this.currentBase,
+                  correct: this.currentCorrectPast,
+                  studentAnswer: 'Missed (floated away)'
+                });
+                
+                if (this.lives <= 0) {
+                  this.gameActive = false;
+                  if (this.spawnInterval) clearInterval(this.spawnInterval);
+                  setTimeout(() => this.endGame(false), 100);
+                } else {
+                  // Move to next word
+                  if (!this.isProcessing) {
+                    this.isProcessing = true;
+                    setTimeout(() => {
+                      if (this.gameActive) {
+                        if (this.isEndless) {
+                          this.pickRandomWord();
+                          this.clearAllBubbles();
+                          this.spawnBubbles();
+                        } else {
+                          this.currentWordIndex++;
+                          this.nextWord();
+                        }
+                      }
+                      this.isProcessing = false;
+                    }, 300);
+                  }
+                }
+              }
+            }
+            bubblesToRemove.push(idx);
+          } else {
+            // Update DOM position
+            bubble.dom.style.top = `${bubble.y}px`;
+          }
+        });
+        
+        // Remove escaped bubbles
+        for (let i = bubblesToRemove.length - 1; i >= 0; i--) {
+          const idx = bubblesToRemove[i];
+          const bubble = this.bubbles[idx];
+          if (bubble.dom && bubble.dom.parentNode) bubble.dom.remove();
+          this.bubbles.splice(idx, 1);
+        }
+      }
+
+      startAnimationLoop() {
+        const animate = () => {
+          if (!this.gameActive) return;
+          this.updateBubblePositions();
+          this.animationFrame = requestAnimationFrame(animate);
+        };
+        this.animationFrame = requestAnimationFrame(animate);
+      }
+
+      updateUI() {
+        const scoreEl = document.getElementById('current-score');
+        const livesEl = document.getElementById('lives-container');
+        
+        if (scoreEl) scoreEl.textContent = this.score;
+        
+        if (livesEl) {
+          livesEl.innerHTML = '';
+          for (let i = 0; i < this.lives; i++) {
+            const heart = document.createElement('span');
+            heart.className = 'heart';
+            heart.textContent = '❤️';
+            livesEl.appendChild(heart);
+          }
+          for (let i = 0; i < 3 - this.lives; i++) {
+            const heart = document.createElement('span');
+            heart.className = 'heart opacity-30';
+            heart.textContent = '❤️';
+            livesEl.appendChild(heart);
+          }
+        }
+      }
+
+      createParticles(element, color) {
+        const rect = element.getBoundingClientRect();
+        const containerRect = this.container.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2 - containerRect.left;
+        const centerY = rect.top + rect.height / 2 - containerRect.top;
+        
+        for (let i = 0; i < 15; i++) {
+          const particle = document.createElement('div');
+          particle.className = 'particle';
+          const angle = Math.random() * Math.PI * 2;
+          const distance = 30 + Math.random() * 40;
+          const dx = Math.cos(angle) * distance;
+          const dy = Math.sin(angle) * distance;
+          particle.style.setProperty('--dx', `${dx}px`);
+          particle.style.setProperty('--dy', `${dy}px`);
+          particle.style.left = `${centerX}px`;
+          particle.style.top = `${centerY}px`;
+          particle.style.background = color;
+          this.container.appendChild(particle);
+          setTimeout(() => particle.remove(), 500);
+        }
+      }
+
+      flashScreen(type) {
+        const gameArea = document.getElementById('game-area');
+        if (gameArea) {
+          if (type === 'correct') {
+            gameArea.classList.add('flash-correct');
+            setTimeout(() => gameArea.classList.remove('flash-correct'), 500);
+          } else {
+            gameArea.classList.add('flash-wrong');
+            setTimeout(() => gameArea.classList.remove('flash-wrong'), 500);
+          }
+        }
+      }
+
+      endGame(isVictory) {
+        this.gameActive = false;
+        if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
+        if (this.spawnInterval) clearInterval(this.spawnInterval);
+        this.clearAllBubbles();
+        
+        if (isVictory && this.lives > 0 && !this.isEndless) {
+          sound.playFanfare();
+        }
+        
+        this.onComplete({
+          score: this.score,
+          mistakes: this.mistakes,
+          totalWords: this.isEndless ? this.wordsCompleted : this.totalWords,
+          isEndless: this.isEndless
+        });
+      }
+
+      destroy() {
+        this.gameActive = false;
+        if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
+        if (this.spawnInterval) clearInterval(this.spawnInterval);
+        this.clearAllBubbles();
+      }
+    }
+
+    // ============================================================
+    // APPLICATION RENDERER
+    // ============================================================
+    let currentGame = null;
+    const appRoot = document.getElementById('app');
+
+    function renderStartScreen() {
+      appRoot.innerHTML = `
+        <div class="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 max-w-3xl mx-auto text-center">
+          <div class="mb-4">
+            <span class="text-7xl">🎈</span>
+            <h1 class="text-5xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mt-2">Word Pop!</h1>
+            <p class="text-gray-600 text-lg mt-2">Pop the correct past tense bubbles!</p>
+          </div>
+          
+          <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-700 mb-3">🎮 Choose Game Mode</h2>
+            <div class="grid gap-4">
+              <button id="mode-classic" class="mode-btn bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 rounded-2xl text-lg shadow-lg transition">
+                📚 Classic Mode (10 Words)
+              </button>
+              <button id="mode-endless" class="mode-btn bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold py-3 rounded-2xl text-lg shadow-lg transition">
+                ♾️ Endless Mode (Survival)
+              </button>
+            </div>
+          </div>
+          
+          <div class="mb-6">
+            <h2 class="text-2xl font-bold text-gray-700 mb-3">📖 Verb Type</h2>
+            <div class="grid grid-cols-3 gap-3">
+              <button id="verb-regular" class="mode-btn bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl text-md shadow transition">
+                Regular Verbs
+              </button>
+              <button id="verb-irregular" class="mode-btn bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-md shadow transition">
+                Irregular Verbs
+              </button>
+              <button id="verb-mixed" class="mode-btn bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl text-md shadow transition">
+                Mixed Challenge
+              </button>
+            </div>
+          </div>
+          
+          <div class="mt-6 p-4 bg-blue-50 rounded-xl">
+            <p class="text-gray-700">💡 <strong>How to play:</strong> Pop the bubble with the correct past tense!<br>
+            ❤️ 3 lives | ⭐ 10 points per correct answer | ⏰ Letting a correct bubble escape costs a life!</p>
+          </div>
+        </div>
+      `;
+      
+      let selectedMode = null;
+      let selectedVerb = 'mixed';
+      
+      // Verb type selection
+      document.getElementById('verb-regular')?.addEventListener('click', () => { selectedVerb = 'regular'; highlightVerb('regular'); });
+      document.getElementById('verb-irregular')?.addEventListener('click', () => { selectedVerb = 'irregular'; highlightVerb('irregular'); });
+      document.getElementById('verb-mixed')?.addEventListener('click', () => { selectedVerb = 'mixed'; highlightVerb('mixed'); });
+      
+      // Game mode selection
+      document.getElementById('mode-classic')?.addEventListener('click', () => startGame(selectedVerb, false));
+      document.getElementById('mode-endless')?.addEventListener('click', () => startGame(selectedVerb, true));
+      
+      function highlightVerb(type) {
+        ['regular', 'irregular', 'mixed'].forEach(t => {
+          const btn = document.getElementById(`verb-${t}`);
+          if (btn) {
+            if (t === type) btn.classList.add('ring-4', 'ring-white', 'scale-105');
+            else btn.classList.remove('ring-4', 'ring-white', 'scale-105');
+          }
+        });
+      }
+      highlightVerb('mixed');
+    }
+
+    function startGame(verbMode, isEndless) {
+      if (currentGame) {
+        currentGame.destroy();
+      }
+      
+      const modeText = isEndless ? 'Endless' : 'Classic';
+      appRoot.innerHTML = `
+        <div class="game-container w-full" style="height: 70vh; min-height: 550px; position: relative;">
+          <div id="game-area" class="absolute inset-0 pointer-events-none" style="z-index: 1;"></div>
+          
+          <!-- HUD -->
+          <div class="absolute top-0 left-0 right-0 bg-white/90 backdrop-blur-md p-4 rounded-b-2xl shadow-lg z-30">
+            <div class="flex justify-between items-center flex-wrap gap-3">
+              <div class="flex items-center gap-4">
+                <span class="font-bold text-xl">⭐ Score: <span id="current-score">0</span></span>
+                <span class="font-bold text-xl">❤️ Lives: <span id="lives-container" class="inline-flex"></span></span>
+              </div>
+              <div class="text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 px-5 py-2 rounded-full shadow">
+                📖 <span id="current-prompt">---</span>
+              </div>
+              <div class="font-bold text-gray-700">${isEndless ? 'Words:' : 'Progress:'} <span id="word-progress">0/${isEndless ? '∞' : '10'}</span></div>
+            </div>
+            <div class="text-center text-sm text-gray-600 mt-1">🎮 ${modeText} Mode - ${verbMode === 'regular' ? 'Regular Verbs' : verbMode === 'irregular' ? 'Irregular Verbs' : 'Mixed Verbs'}</div>
+          </div>
+          
+          <!-- Bubble Container -->
+          <div id="bubble-container" class="relative w-full h-full overflow-visible" style="pointer-events: auto; z-index: 20;"></div>
+          
+          <button id="quit-btn" class="absolute bottom-4 right-4 bg-red-500/80 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-full shadow-lg z-30 transition text-sm">
+            🚪 Quit
+          </button>
+          
+          <div class="absolute bottom-4 left-4 text-center text-white/80 text-sm font-semibold z-30 bg-black/30 px-3 py-1 rounded-full">
+            ✨ Tap bubbles to pop! ✨
+          </div>
+        </div>
+      `;
+      
+      const bubbleContainer = document.getElementById('bubble-container');
+      
+      const onGameComplete = (result) => {
+        renderGameOver(result.score, result.mistakes, result.isEndless);
+      };
+      
+      currentGame = new WordPopGame(bubbleContainer, verbMode, onGameComplete, isEndless);
+      currentGame.init();
+      
+      document.getElementById('quit-btn')?.addEventListener('click', () => {
+        if (currentGame) currentGame.destroy();
+        renderStartScreen();
+      });
+    }
+
+    function renderGameOver(score, mistakes, isEndless) {
+      if (currentGame) {
+        currentGame.destroy();
+        currentGame = null;
+      }
+      
+      const correctMistakes = mistakes.filter(m => !m.studentAnswer.includes('Missed'));
+      const missed = mistakes.filter(m => m.studentAnswer.includes('Missed'));
+      
+      appRoot.innerHTML = `
+        <div class="bg-white/95 rounded-3xl shadow-2xl p-6 max-w-3xl mx-auto my-4">
+          <div class="text-center">
+            <span class="text-6xl">${isEndless ? '♾️' : '🎮'}</span>
+            <h2 class="text-4xl font-black text-purple-700 mt-2">Game Over!</h2>
+            <div class="text-3xl font-bold mt-3">Final Score: ${score}</div>
+            ${isEndless ? `<div class="text-lg text-gray-600 mt-1">You survived ${mistakes.filter(m => m.studentAnswer.includes('Missed')).length + correctMistakes.length} words!</div>` : ''}
+          </div>
+          
+          <div class="mt-6 bg-gray-100 rounded-2xl p-4 max-h-80 overflow-y-auto review-list">
+            <h3 class="font-bold text-xl mb-3">📝 Words to Review (${mistakes.length} mistakes)</h3>
+            ${mistakes.length === 0 ? '<p class="text-green-600 text-center py-4">🎉 Perfect! No mistakes! 🎉</p>' : ''}
+            <ul class="space-y-2">
+              ${correctMistakes.map(m => `
+                <li class="bg-white rounded-lg p-2 shadow-sm">
+                  <span class="font-mono font-bold">${m.base}</span> → 
+                  <span class="text-green-700 font-semibold">${m.correct}</span> 
+                  <span class="text-red-500">(Your answer: ${m.studentAnswer})</span>
+                </li>
+              `).join('')}
+              ${missed.map(m => `
+                <li class="bg-white rounded-lg p-2 shadow-sm">
+                  <span class="font-mono font-bold">${m.base}</span> → 
+                  <span class="text-green-700 font-semibold">${m.correct}</span>
+                  <span class="text-orange-500"> (Missed - floated away)</span>
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-3 mt-6">
+            <button id="play-again" class="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-bold py-3 rounded-xl shadow-lg transition">
+              🔁 Play Again
+            </button>
+            <button id="main-menu" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 rounded-xl shadow-lg transition">
+              🏠 Main Menu
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('play-again')?.addEventListener('click', () => {
+        renderStartScreen();
+      });
+      document.getElementById('main-menu')?.addEventListener('click', () => {
+        renderStartScreen();
+      });
+    }
+
+    // Start the application
+    renderStartScreen();
+  </script>
+</body>
+</html>
