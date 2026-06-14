@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Past Tense Pop! | Past Tense Bubble Game</title>
+  <title>Past Tense Word Pop | Educational Bubble Game</title>
   <!-- Tailwind CSS v3 -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -74,7 +74,7 @@
     }
 
     @keyframes greenFlash {
-      0% { background-color: rgba(34,197,94,0.4); }
+      0% { background-color: rgba(34,197,94,0.5); }
       100% { background-color: rgba(34,197,94,0); }
     }
 
@@ -85,7 +85,7 @@
 
     /* Heart styling */
     .heart {
-      font-size: 2rem;
+      font-size: 1.8rem;
       display: inline-block;
       margin: 0 2px;
     }
@@ -111,10 +111,12 @@
       transform: scale(0.95);
     }
 
-    /* Mode selector active state */
-    .mode-active {
-      ring: 4px solid white;
-      transform: scale(1.02);
+    /* Music control button */
+    .music-control {
+      transition: all 0.2s ease;
+    }
+    .music-control:hover {
+      transform: scale(1.05);
     }
   </style>
 </head>
@@ -158,7 +160,7 @@
       "eat","awake","beat","become","begin","bend","bet","bite","bleed","blow","bear","buy","bind","breed","broadcast","break","bring","build","burn","burst",
       "come","cast","catch","choose","cling","cost","creep","cut","deal","do","drink","dream","draw","drive","dig","feed","fall","feel","fit","flee","fly","fling",
       "forget","fight","find","freeze","give","get","grow","grind","hear","hold","hide","hit","hang","hurt","keep","kneel","know","knit","lay","lie","leap","learn",
-      "lead","lend","let","light","lose","make","mean","meet","misspell","mistake","overcome","overdo","overthrow","overtake","pay","put","quit","run","ring","read",
+      "lead","lend","let","light","lit","lose","make","mean","meet","misspell","mistake","overcome","overdo","overthrow","overtake","pay","put","quit","run","ring","read",
       "rid","ride","rise","say","sing","sink","sit","see","send","set","shine","shake","shoot","shrink","shut","sleep","slide","sling","sell","seek","spit","speed",
       "spend","split","speak","spread","spring","spin","steal","stand","stink","stick","sting","strike","swim","sweep","swing","teach","think","throw","tell","take",
       "tread","understand","upset","am","wed","go","weep","are","withhold","wake","win","wear","write"
@@ -168,11 +170,15 @@
     const irregularVerbs = Object.keys(VERB_DATA).filter(v => IRREGULAR_SET.has(v));
 
     // ============================================================
-    // AUDIO SYNTHESIS (Web Audio API)
+    // AUDIO SYNTHESIS WITH BACKGROUND MUSIC
     // ============================================================
-    class AudioSynth {
+    class AudioManager {
       constructor() {
         this.ctx = null;
+        this.bgMusicNode = null;
+        this.bgMusicGain = null;
+        this.isMusicPlaying = false;
+        this.musicEnabled = true;
       }
 
       init() {
@@ -182,54 +188,156 @@
         if (this.ctx.state === 'suspended') {
           this.ctx.resume();
         }
+        return this.ctx;
       }
 
-      playPop() {
+      // Play correct answer sound effect (happy pop)
+      playCorrect() {
         this.init();
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.connect(gain);
         gain.connect(this.ctx.destination);
+        
+        // Cheerful ascending tone
         osc.frequency.value = 880;
-        gain.gain.setValueAtTime(0.25, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
         osc.start();
-        osc.stop(now + 0.2);
+        osc.stop(now + 0.25);
+        
+        // Add a second harmonic for richness
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(this.ctx.destination);
+        osc2.frequency.value = 1046;
+        gain2.gain.setValueAtTime(0.15, now);
+        gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+        osc2.start();
+        osc2.stop(now + 0.2);
       }
 
-      playBuzz() {
+      // Play wrong answer sound effect (buzzer)
+      playWrong() {
         this.init();
         const now = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.connect(gain);
         gain.connect(this.ctx.destination);
-        osc.frequency.value = 180;
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+        osc.type = 'sawtooth';
+        osc.frequency.value = 150;
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
         osc.start();
-        osc.stop(now + 0.3);
+        osc.stop(now + 0.35);
+        
+        // Add a wobbly low tone
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(this.ctx.destination);
+        osc2.frequency.value = 120;
+        gain2.gain.setValueAtTime(0.15, now);
+        gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+        osc2.start();
+        osc2.stop(now + 0.3);
       }
 
+      // Play victory fanfare
       playFanfare() {
         this.init();
-        const notes = [523, 659, 784, 1046];
+        const notes = [523, 659, 784, 1046, 784, 659, 523];
         notes.forEach((freq, i) => {
           const osc = this.ctx.createOscillator();
           const gain = this.ctx.createGain();
           osc.connect(gain);
           gain.connect(this.ctx.destination);
           osc.frequency.value = freq;
-          gain.gain.setValueAtTime(0.15, this.ctx.currentTime + i * 0.18);
-          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + i * 0.18 + 0.4);
-          osc.start(this.ctx.currentTime + i * 0.18);
-          osc.stop(this.ctx.currentTime + i * 0.18 + 0.35);
+          gain.gain.setValueAtTime(0.2, this.ctx.currentTime + i * 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + i * 0.15 + 0.35);
+          osc.start(this.ctx.currentTime + i * 0.15);
+          osc.stop(this.ctx.currentTime + i * 0.15 + 0.3);
         });
+      }
+
+      // Start soft background music (looping, gentle melody)
+      startBackgroundMusic() {
+        if (!this.musicEnabled) return;
+        this.init();
+        
+        // Stop any existing music
+        if (this.bgMusicNode) {
+          try { this.bgMusicNode.stop(); } catch(e) {}
+        }
+        
+        const now = this.ctx.currentTime;
+        this.bgMusicGain = this.ctx.createGain();
+        this.bgMusicGain.gain.setValueAtTime(0.12, now); // Soft volume
+        this.bgMusicGain.connect(this.ctx.destination);
+        
+        // Create a gentle arpeggio loop
+        const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 261.63]; // C E G C G E C
+        let noteIndex = 0;
+        
+        const scheduleNote = () => {
+          if (!this.isMusicPlaying || !this.musicEnabled) return;
+          
+          const freq = notes[noteIndex % notes.length];
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.8);
+          osc.connect(gain);
+          gain.connect(this.bgMusicGain);
+          
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.8);
+          
+          noteIndex++;
+          // Schedule next note after 0.9 seconds
+          this.musicTimeout = setTimeout(() => scheduleNote(), 900);
+        };
+        
+        this.isMusicPlaying = true;
+        scheduleNote();
+      }
+
+      stopBackgroundMusic() {
+        this.isMusicPlaying = false;
+        if (this.musicTimeout) clearTimeout(this.musicTimeout);
+        if (this.bgMusicGain) {
+          this.bgMusicGain.gain.rampToValueAtTime(0, this.ctx?.currentTime + 0.5);
+        }
+      }
+
+      toggleMusic() {
+        this.musicEnabled = !this.musicEnabled;
+        if (this.musicEnabled && this.isMusicPlaying === false) {
+          this.startBackgroundMusic();
+        } else if (!this.musicEnabled && this.isMusicPlaying) {
+          this.stopBackgroundMusic();
+          this.isMusicPlaying = false;
+        } else if (this.musicEnabled && this.isMusicPlaying) {
+          // Already playing, do nothing
+        }
+        return this.musicEnabled;
+      }
+
+      // Call this when user first interacts with game to unlock audio
+      unlockAudio() {
+        this.init();
+        if (this.musicEnabled && !this.isMusicPlaying) {
+          this.startBackgroundMusic();
+        }
       }
     }
 
-    const sound = new AudioSynth();
+    const audio = new AudioManager();
 
     // ============================================================
     // GAME ENGINE
@@ -257,11 +365,18 @@
         this.wordsCompleted = 0;
         
         // Spawn timing
-        this.lastSpawnTime = 0;
-        this.spawnDelay = 2000; // Spawn new wave every 2 seconds
+        this.spawnDelay = 2000;
         
         // Prevent multiple interactions
         this.isProcessing = false;
+        this.audioUnlocked = false;
+      }
+
+      unlockGameAudio() {
+        if (!this.audioUnlocked) {
+          audio.unlockAudio();
+          this.audioUnlocked = true;
+        }
       }
 
       init() {
@@ -284,7 +399,6 @@
         else if (this.mode === 'irregular') pool = [...irregularVerbs];
         else pool = [...regularVerbs, ...irregularVerbs];
         
-        // Shuffle and pick 10
         for (let i = pool.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -293,13 +407,11 @@
       }
 
       startEndlessMode() {
-        // Pick a random starting word
         this.pickRandomWord();
         this.spawnBubbles();
         
-        // Set up periodic spawning
         this.spawnInterval = setInterval(() => {
-          if (this.gameActive && !this.isProcessing) {
+          if (this.gameActive && !this.isProcessing && this.bubbles.length < 20) {
             this.spawnBubbles();
           }
         }, this.spawnDelay);
@@ -330,13 +442,9 @@
         this.currentBase = this.wordSequence[this.currentWordIndex];
         this.currentCorrectPast = VERB_DATA[this.currentBase];
         
-        // Clear all existing bubbles
         this.clearAllBubbles();
-        
-        // Spawn new bubble set (7-8 bubbles for more challenge)
         this.spawnBubbles();
         
-        // Update prompt display
         const promptEl = document.getElementById('current-prompt');
         if (promptEl) promptEl.textContent = this.currentBase;
         
@@ -344,18 +452,17 @@
         if (progressEl && !this.isEndless) {
           progressEl.textContent = `${this.currentWordIndex + 1}/${this.totalWords}`;
         } else if (progressEl && this.isEndless) {
-          progressEl.textContent = `🎯 ${this.wordsCompleted} words`;
+          progressEl.textContent = `🎯 ${this.wordsCompleted}`;
         }
       }
 
       spawnBubbles() {
-        // Create 1 correct + 6-7 distractors (more challenging)
         const correctPast = this.currentCorrectPast;
         const allPastTenses = Object.values(VERB_DATA);
         const distractors = new Set();
         distractors.add(correctPast);
         
-        const numBubbles = 7 + Math.floor(Math.random() * 2); // 7-8 bubbles total
+        const numBubbles = 7 + Math.floor(Math.random() * 2);
         
         while (distractors.size < numBubbles) {
           const randomPast = allPastTenses[Math.floor(Math.random() * allPastTenses.length)];
@@ -363,22 +470,19 @@
         }
         
         const bubbleTexts = Array.from(distractors);
-        // Shuffle positions
         for (let i = bubbleTexts.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [bubbleTexts[i], bubbleTexts[j]] = [bubbleTexts[j], bubbleTexts[i]];
         }
         
-        // Create bubbles with non-overlapping positions
         this.createNonOverlappingBubbles(bubbleTexts, correctPast);
       }
 
       createNonOverlappingBubbles(bubbleTexts, correctPast) {
         const containerWidth = this.container.clientWidth;
         const containerHeight = this.container.clientHeight;
-        const minDistance = 85; // Minimum distance between bubble centers
+        const minDistance = 85;
         const margin = 15;
-        
         const positions = [];
         
         bubbleTexts.forEach((pastText) => {
@@ -391,7 +495,6 @@
             const leftPos = margin + Math.random() * (containerWidth - size - margin * 2);
             const startY = containerHeight - 40 - (Math.random() * 60);
             
-            // Check for overlap with existing bubbles
             let overlapping = false;
             for (let pos of positions) {
               const dx = Math.abs(pos.left - leftPos);
@@ -411,7 +514,6 @@
             attempts++;
           }
           
-          // If can't place without overlap, place anyway
           if (!placed) {
             const leftPos = margin + Math.random() * (containerWidth - size - margin * 2);
             const startY = containerHeight - 40 - (Math.random() * 60);
@@ -430,15 +532,12 @@
         bubble.style.fontSize = `${Math.max(14, size * 0.18)}px`;
         bubble.style.left = `${leftPos}px`;
         bubble.style.top = `${startY}px`;
-        
         bubble.textContent = text;
         bubble.dataset.past = text;
         bubble.dataset.correct = isCorrect;
         
-        // Store velocity (pixels per frame, moving up)
-        const speed = 0.7 + Math.random() * 0.8; // Varied speeds
+        const speed = 0.7 + Math.random() * 0.8;
         
-        // Add click handler
         const handleClick = (e) => {
           e.stopPropagation();
           e.preventDefault();
@@ -452,7 +551,6 @@
         
         this.container.appendChild(bubble);
         
-        // Store bubble data
         this.bubbles.push({
           dom: bubble,
           y: startY,
@@ -468,21 +566,16 @@
       popBubble(bubbleEl, text, isCorrect) {
         if (!this.gameActive || this.isProcessing) return;
         
-        // Activate audio on first interaction
-        sound.init();
+        this.unlockGameAudio();
         
         if (isCorrect) {
-          // CORRECT POP
-          sound.playPop();
+          audio.playCorrect();
           this.score += 10;
           this.updateUI();
           this.createParticles(bubbleEl, '#fbbf24');
           this.flashScreen('correct');
-          
-          // Remove bubble
           this.removeBubble(bubbleEl);
           
-          // Move to next word
           this.isProcessing = true;
           setTimeout(() => {
             if (this.isEndless) {
@@ -496,24 +589,20 @@
             this.isProcessing = false;
           }, 200);
         } else {
-          // WRONG POP
-          sound.playBuzz();
+          audio.playWrong();
           this.lives--;
           this.updateUI();
           this.createParticles(bubbleEl, '#ef4444');
           this.flashScreen('wrong');
           
-          // Record mistake
           this.mistakes.push({
             base: this.currentBase,
             correct: this.currentCorrectPast,
             studentAnswer: text
           });
           
-          // Remove this specific bubble
           this.removeBubble(bubbleEl);
           
-          // Check game over
           if (this.lives <= 0) {
             this.gameActive = false;
             if (this.spawnInterval) clearInterval(this.spawnInterval);
@@ -545,56 +634,45 @@
         const bubblesToRemove = [];
         
         this.bubbles.forEach((bubble, idx) => {
-          // Move bubble up
           bubble.y -= bubble.speed;
           
-          // Check if bubble reached top (escaped)
           if (bubble.y < 20) {
-            // Bubble escaped without being popped
-            if (bubble.isCorrect) {
-              // Correct bubble escaped - lose a life
-              if (this.gameActive) {
-                this.lives--;
-                this.updateUI();
-                this.mistakes.push({
-                  base: this.currentBase,
-                  correct: this.currentCorrectPast,
-                  studentAnswer: 'Missed (floated away)'
-                });
-                
-                if (this.lives <= 0) {
-                  this.gameActive = false;
-                  if (this.spawnInterval) clearInterval(this.spawnInterval);
-                  setTimeout(() => this.endGame(false), 100);
-                } else {
-                  // Move to next word
-                  if (!this.isProcessing) {
-                    this.isProcessing = true;
-                    setTimeout(() => {
-                      if (this.gameActive) {
-                        if (this.isEndless) {
-                          this.pickRandomWord();
-                          this.clearAllBubbles();
-                          this.spawnBubbles();
-                        } else {
-                          this.currentWordIndex++;
-                          this.nextWord();
-                        }
-                      }
-                      this.isProcessing = false;
-                    }, 300);
+            if (bubble.isCorrect && this.gameActive) {
+              this.lives--;
+              this.updateUI();
+              this.mistakes.push({
+                base: this.currentBase,
+                correct: this.currentCorrectPast,
+                studentAnswer: 'Missed (floated away)'
+              });
+              
+              if (this.lives <= 0) {
+                this.gameActive = false;
+                if (this.spawnInterval) clearInterval(this.spawnInterval);
+                setTimeout(() => this.endGame(false), 100);
+              } else if (!this.isProcessing) {
+                this.isProcessing = true;
+                setTimeout(() => {
+                  if (this.gameActive) {
+                    if (this.isEndless) {
+                      this.pickRandomWord();
+                      this.clearAllBubbles();
+                      this.spawnBubbles();
+                    } else {
+                      this.currentWordIndex++;
+                      this.nextWord();
+                    }
                   }
-                }
+                  this.isProcessing = false;
+                }, 300);
               }
             }
             bubblesToRemove.push(idx);
           } else {
-            // Update DOM position
             bubble.dom.style.top = `${bubble.y}px`;
           }
         });
         
-        // Remove escaped bubbles
         for (let i = bubblesToRemove.length - 1; i >= 0; i--) {
           const idx = bubblesToRemove[i];
           const bubble = this.bubbles[idx];
@@ -678,7 +756,7 @@
         this.clearAllBubbles();
         
         if (isVictory && this.lives > 0 && !this.isEndless) {
-          sound.playFanfare();
+          audio.playFanfare();
         }
         
         this.onComplete({
@@ -701,6 +779,7 @@
     // APPLICATION RENDERER
     // ============================================================
     let currentGame = null;
+    let musicOn = true;
     const appRoot = document.getElementById('app');
 
     function renderStartScreen() {
@@ -708,11 +787,16 @@
         <div class="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 max-w-3xl mx-auto text-center">
           <div class="mb-4">
             <span class="text-7xl">🎈</span>
-            <h1 class="text-5xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mt-2">Word Pop!</h1>
+            <h1 class="text-5xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mt-2">Past Tense Word Pop!</h1>
             <p class="text-gray-600 text-lg mt-2">Pop the correct past tense bubbles!</p>
           </div>
           
           <div class="mb-6">
+            <div class="flex justify-center gap-3 mb-4">
+              <button id="music-toggle" class="music-control bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-4 py-2 rounded-full shadow transition flex items-center gap-2">
+                <span id="music-icon">🔊</span> <span id="music-text">Music On</span>
+              </button>
+            </div>
             <h2 class="text-2xl font-bold text-gray-700 mb-3">🎮 Choose Game Mode</h2>
             <div class="grid gap-4">
               <button id="mode-classic" class="mode-btn bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 rounded-2xl text-lg shadow-lg transition">
@@ -741,22 +825,33 @@
           
           <div class="mt-6 p-4 bg-blue-50 rounded-xl">
             <p class="text-gray-700">💡 <strong>How to play:</strong> Pop the bubble with the correct past tense!<br>
-            ❤️ 3 lives | ⭐ 10 points per correct answer | ⏰ Letting a correct bubble escape costs a life!</p>
+            ❤️ 3 lives | ⭐ 10 points per correct answer | ⏰ Letting a correct bubble escape costs a life!<br>
+            🎵 Soft background music & sound effects included!</p>
           </div>
         </div>
       `;
       
-      let selectedMode = null;
       let selectedVerb = 'mixed';
       
-      // Verb type selection
       document.getElementById('verb-regular')?.addEventListener('click', () => { selectedVerb = 'regular'; highlightVerb('regular'); });
       document.getElementById('verb-irregular')?.addEventListener('click', () => { selectedVerb = 'irregular'; highlightVerb('irregular'); });
       document.getElementById('verb-mixed')?.addEventListener('click', () => { selectedVerb = 'mixed'; highlightVerb('mixed'); });
       
-      // Game mode selection
       document.getElementById('mode-classic')?.addEventListener('click', () => startGame(selectedVerb, false));
       document.getElementById('mode-endless')?.addEventListener('click', () => startGame(selectedVerb, true));
+      
+      document.getElementById('music-toggle')?.addEventListener('click', () => {
+        musicOn = audio.toggleMusic();
+        const icon = document.getElementById('music-icon');
+        const text = document.getElementById('music-text');
+        if (musicOn) {
+          icon.textContent = '🔊';
+          text.textContent = 'Music On';
+        } else {
+          icon.textContent = '🔇';
+          text.textContent = 'Music Off';
+        }
+      });
       
       function highlightVerb(type) {
         ['regular', 'irregular', 'mixed'].forEach(t => {
@@ -771,16 +866,13 @@
     }
 
     function startGame(verbMode, isEndless) {
-      if (currentGame) {
-        currentGame.destroy();
-      }
+      if (currentGame) currentGame.destroy();
       
       const modeText = isEndless ? 'Endless' : 'Classic';
       appRoot.innerHTML = `
         <div class="game-container w-full" style="height: 70vh; min-height: 550px; position: relative;">
           <div id="game-area" class="absolute inset-0 pointer-events-none" style="z-index: 1;"></div>
           
-          <!-- HUD -->
           <div class="absolute top-0 left-0 right-0 bg-white/90 backdrop-blur-md p-4 rounded-b-2xl shadow-lg z-30">
             <div class="flex justify-between items-center flex-wrap gap-3">
               <div class="flex items-center gap-4">
@@ -795,14 +887,18 @@
             <div class="text-center text-sm text-gray-600 mt-1">🎮 ${modeText} Mode - ${verbMode === 'regular' ? 'Regular Verbs' : verbMode === 'irregular' ? 'Irregular Verbs' : 'Mixed Verbs'}</div>
           </div>
           
-          <!-- Bubble Container -->
           <div id="bubble-container" class="relative w-full h-full overflow-visible" style="pointer-events: auto; z-index: 20;"></div>
           
-          <button id="quit-btn" class="absolute bottom-4 right-4 bg-red-500/80 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-full shadow-lg z-30 transition text-sm">
-            🚪 Quit
-          </button>
+          <div class="absolute bottom-4 left-4 flex gap-2 z-30">
+            <button id="music-toggle-game" class="bg-white/80 hover:bg-white text-gray-800 font-bold px-3 py-2 rounded-full shadow-lg transition text-sm flex items-center gap-1">
+              ${musicOn ? '🔊 Music On' : '🔇 Music Off'}
+            </button>
+            <button id="quit-btn" class="bg-red-500/80 hover:bg-red-600 text-white font-bold px-4 py-2 rounded-full shadow-lg transition text-sm">
+              🚪 Quit
+            </button>
+          </div>
           
-          <div class="absolute bottom-4 left-4 text-center text-white/80 text-sm font-semibold z-30 bg-black/30 px-3 py-1 rounded-full">
+          <div class="absolute bottom-4 right-4 text-center text-white/80 text-sm font-semibold z-30 bg-black/30 px-3 py-1 rounded-full">
             ✨ Tap bubbles to pop! ✨
           </div>
         </div>
@@ -820,6 +916,12 @@
       document.getElementById('quit-btn')?.addEventListener('click', () => {
         if (currentGame) currentGame.destroy();
         renderStartScreen();
+      });
+      
+      document.getElementById('music-toggle-game')?.addEventListener('click', () => {
+        musicOn = audio.toggleMusic();
+        const btn = document.getElementById('music-toggle-game');
+        if (btn) btn.textContent = musicOn ? '🔊 Music On' : '🔇 Music Off';
       });
     }
 
@@ -873,15 +975,10 @@
         </div>
       `;
       
-      document.getElementById('play-again')?.addEventListener('click', () => {
-        renderStartScreen();
-      });
-      document.getElementById('main-menu')?.addEventListener('click', () => {
-        renderStartScreen();
-      });
+      document.getElementById('play-again')?.addEventListener('click', () => renderStartScreen());
+      document.getElementById('main-menu')?.addEventListener('click', () => renderStartScreen());
     }
 
-    // Start the application
     renderStartScreen();
   </script>
 </body>
